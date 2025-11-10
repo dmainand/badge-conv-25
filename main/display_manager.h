@@ -11,13 +11,13 @@ public:
     void displayLoop();
 
 private:
-    void drawScanlines();
-    void drawNameWithGlow(const char *name1, const char *name2);
-    void drawLikeCounter();
     LGFX &m_lcd;
     AppState &m_state;
     LGFX_Sprite spr;
     uint16_t colBackground, colNeonViolet, colCyan, colYellow, colHeart;
+    void drawScanlines();
+    void drawNameWithGlow(const char *name1, const char *name2);
+    void drawLikeCounter();
     void drawNeonText(const char *txt1, const char *txt2, int x, int y1, int y2);
     void updateNeonFlicker();
     void drawStaticElements();

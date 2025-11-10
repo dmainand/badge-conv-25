@@ -2,15 +2,20 @@
 #include "LovyanGFX.hpp"
 
 // --- LGFX config custom for ESP32 CYD (2432S028) ---
+
+#include <lgfx/v1/touch/Touch_XPT2046.hpp>
+
 class LGFX : public lgfx::LGFX_Device
 {
     lgfx::Panel_ILI9341 _panel_instance;
     lgfx::Bus_SPI _bus_instance;
     lgfx::Light_PWM _light_instance;
+    lgfx::Touch_XPT2046 _touch_instance;
 
 public:
     LGFX(void)
     {
+        // Bus SPI pour l'écran
         {
             auto cfg = _bus_instance.config();
             cfg.spi_host = HSPI_HOST;
@@ -27,6 +32,7 @@ public:
             _bus_instance.config(cfg);
             _panel_instance.setBus(&_bus_instance);
         }
+        // Config écran
         {
             auto cfg = _panel_instance.config();
             cfg.pin_cs = 15;
@@ -48,6 +54,7 @@ public:
             cfg.bus_shared = false;
             _panel_instance.config(cfg);
         }
+        // Rétroéclairage
         {
             auto cfg = _light_instance.config();
             cfg.pin_bl = 21;
@@ -56,6 +63,24 @@ public:
             cfg.pwm_channel = 7;
             _light_instance.config(cfg);
             _panel_instance.setLight(&_light_instance);
+        }
+        // Touch XPT2046
+        {
+            auto cfg = _touch_instance.config();
+            cfg.spi_host = VSPI_HOST;
+            cfg.freq = 100000;
+            cfg.pin_sclk = 25;     // T_CLK
+            cfg.pin_mosi = 32;     // T_DIN
+            cfg.pin_miso = 39;     // T_OUT
+            cfg.pin_cs = 33;       // T_CS
+            cfg.pin_int = 36;      // T_IRQ
+            cfg.x_min = 200;       // Ajusté pour que le coin gauche donne x ≈ 0
+            cfg.x_max = 3900;      // Ajusté pour que le coin droit donne x ≈ largeur écran
+            cfg.y_min = 3900;      // Inversé pour que le haut donne y ≈ 0
+            cfg.y_max = 100;       // Inversé pour que le bas donne y ≈ hauteur écran
+            cfg.bus_shared = true; // Bus partagé avec l'écran
+            _touch_instance.config(cfg);
+            _panel_instance.setTouch(&_touch_instance);
         }
         setPanel(&_panel_instance);
     }

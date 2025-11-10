@@ -1,4 +1,5 @@
 #include "display_manager.h"
+#include "esp_log.h"
 #include <cmath>
 #include <cstdio>
 
@@ -23,9 +24,19 @@ void DisplayManager::displayLoop()
     if (!shouldRenderFrame())
         return;
 
+    // Debug tactile
+    int pixel_x = -1, pixel_y = -1;
+    bool touchDetected = m_lcd.getTouch(&pixel_x, &pixel_y);
+    if (touchDetected)
+    {
+        // Ici pixel_x et pixel_y sont les coordonnées écran (0 à largeur/hauteur)
+        ESP_LOGI("TOUCH", "Touch detected (pixels): %d %d", pixel_x, pixel_y);
+    }
+
     updateNeonFlicker();
     updateScanlineOffset();
     updateBrightness();
+
     renderBackground();
     renderHeader();
     renderHeart();

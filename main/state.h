@@ -16,4 +16,6 @@ public:
     int anim_glow_direction = 1;
     int screenW = 0;
     int screenH = 0;
+    int touch_x = -1;
+    int touch_y = -1;
 };
