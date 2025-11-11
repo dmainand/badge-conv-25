@@ -36,7 +36,6 @@ extern "C" void app_main(void)
   lcd.init();
   srand((unsigned int)time(NULL));
   lcd.setBrightness(255);
-  lcd.setRotation(5);
   displayManager.init();
   // Lancement de la tâche d'affichage
   xTaskCreate(display_loop_task, "display_loop", 4096, NULL, 2, NULL);

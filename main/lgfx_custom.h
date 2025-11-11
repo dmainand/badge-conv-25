@@ -49,6 +49,7 @@ public:
             cfg.dummy_read_bits = 1;
             cfg.readable = false;
             cfg.invert = false;
+            cfg.offset_rotation = 5; // Portrait
             cfg.rgb_order = true;
             cfg.dlen_16bit = false;
             cfg.bus_shared = false;
@@ -69,16 +70,17 @@ public:
             auto cfg = _touch_instance.config();
             cfg.spi_host = VSPI_HOST;
             cfg.freq = 100000;
-            cfg.pin_sclk = 25;     // T_CLK
-            cfg.pin_mosi = 32;     // T_DIN
-            cfg.pin_miso = 39;     // T_OUT
-            cfg.pin_cs = 33;       // T_CS
-            cfg.pin_int = 36;      // T_IRQ
-            cfg.x_min = 200;       // Ajusté pour que le coin gauche donne x ≈ 0
-            cfg.x_max = 3900;      // Ajusté pour que le coin droit donne x ≈ largeur écran
-            cfg.y_min = 3900;      // Inversé pour que le haut donne y ≈ 0
-            cfg.y_max = 100;       // Inversé pour que le bas donne y ≈ hauteur écran
-            cfg.bus_shared = true; // Bus partagé avec l'écran
+            cfg.pin_sclk = 25; // T_CLK
+            cfg.pin_mosi = 32; // T_DIN
+            cfg.pin_miso = 39; // T_OUT
+            cfg.pin_cs = 33;   // T_CS
+            cfg.pin_int = 36;  // T_IRQ
+            cfg.x_min = 3800;
+            cfg.x_max = 300;
+            cfg.y_min = 500;
+            cfg.y_max = 3800;
+            cfg.bus_shared = true;   // Bus partagé avec l'écran
+            cfg.offset_rotation = 5; // Même rotation que l'écran
             _touch_instance.config(cfg);
             _panel_instance.setTouch(&_touch_instance);
         }
