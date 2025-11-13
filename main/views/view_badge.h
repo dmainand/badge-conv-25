@@ -11,9 +11,8 @@ class ViewBadge : public View
 public:
     ViewBadge(AppState &state, LGFX &lcd);
     void render(LGFX &display, LGFX_Sprite &spr) override;
-    void updateNeonFlicker();
+    void updateNeonIntensity();
     void updateScanlineOffset();
-    void updateBrightness();
     void renderBackground(LGFX_Sprite &spr);
     void renderHeader(LGFX_Sprite &spr);
     void renderHeart(LGFX_Sprite &spr);

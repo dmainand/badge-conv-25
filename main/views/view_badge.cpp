@@ -4,6 +4,8 @@
 #include <string>
 #include "state.h"
 #include <cmath>
+#include "esp_timer.h"
+#include "esp_random.h"
 
 // Couleurs badge (similaire à l'ancien display_manager)
 static uint16_t colBackground = 0;
@@ -28,38 +30,83 @@ static void initColors(LGFX &display)
 ViewBadge::ViewBadge(AppState &state, LGFX &lcd)
     : m_state(state), m_lcd(lcd)
 {
+    // Initialiser le prochain clignotement
+    uint32_t random_delay = (esp_random() % 5000) + 5000; // 5-10 secondes
+    m_state.neon_next_flicker = (esp_timer_get_time() / 1000ULL) + random_delay;
 }
 
-void ViewBadge::updateNeonFlicker()
+void ViewBadge::updateNeonIntensity()
 {
-    float flicker_fast = 0.75f + 0.35f * ((float)rand() / RAND_MAX) * ((float)rand() / RAND_MAX);
-    if (m_state.neon_dim_frames <= 0 && ((float)rand() / RAND_MAX) < 0.016f)
+    unsigned long now = esp_timer_get_time() / 1000ULL; // Convertir microsecondes en millisecondes
+
+    // Calcul du delta time en secondes
+    float dt = 0.016f; // ~60fps par défaut
+    if (m_state.neon_last_update > 0)
     {
-        m_state.neon_dim_frames = 6 + rand() % 10;
-        float base_dim = 0.65f + 0.25f * ((float)rand() / RAND_MAX) * ((float)rand() / RAND_MAX);
-        m_state.neon_dim_target = base_dim;
+        dt = (now - m_state.neon_last_update) / 1000.0f;
+        dt = fminf(dt, 0.1f); // Limiter le delta time
     }
-    if (m_state.neon_dim_frames > 0)
+    m_state.neon_last_update = now;
+
+    // Incrémenter le temps pour la sinusoïde
+    m_state.neon_time += dt;
+
+    // Vérifier si on doit déclencher un clignotement
+    if (!m_state.neon_is_flickering && now >= m_state.neon_next_flicker)
     {
-        float frame_dim = m_state.neon_dim_target + 0.08f * (((float)rand() / RAND_MAX) - 0.5f);
-        flicker_fast *= frame_dim;
-        m_state.neon_dim_frames--;
+        m_state.neon_is_flickering = true;
+        m_state.neon_flicker_start = now;
     }
-    float smoothing = 0.72f;
-    m_state.neon_flicker_smooth = smoothing * m_state.neon_flicker_smooth + (1.0f - smoothing) * flicker_fast;
-    m_state.neon_flicker = m_state.neon_flicker_smooth;
+
+    // Gérer le clignotement
+    if (m_state.neon_is_flickering)
+    {
+        unsigned long flicker_duration = now - m_state.neon_flicker_start;
+        uint32_t flicker_length = (esp_random() % 1000) + 1000; // 1-2 secondes
+
+        if (flicker_duration < flicker_length)
+        {
+            // Clignotement rapide et fort avec variations aléatoires
+            float flicker_speed = 15.0f + ((esp_random() % 100) / 100.0f) * 10.0f; // 15-25 Hz
+            float flicker_phase = m_state.neon_time * flicker_speed;
+            float flicker_base = sinf(flicker_phase);
+
+            // Ajouter du bruit aléatoire
+            float noise = ((esp_random() % 100) / 100.0f) * 0.3f - 0.15f;
+
+            // Intensité très basse pendant le clignotement (presque éteint)
+            m_state.neon_flicker_intensity = 0.15f + (flicker_base * 0.5f + 0.5f) * 0.25f + noise;
+            m_state.neon_flicker_intensity = fmaxf(0.05f, fminf(1.0f, m_state.neon_flicker_intensity));
+        }
+        else
+        {
+            // Fin du clignotement
+            m_state.neon_is_flickering = false;
+            m_state.neon_flicker_intensity = 1.0f;
+            // Planifier le prochain clignotement dans 5-10 secondes
+            uint32_t random_delay = (esp_random() % 5000) + 5000;
+            m_state.neon_next_flicker = now + random_delay;
+        }
+    }
+    else
+    {
+        m_state.neon_flicker_intensity = 1.0f;
+    }
+
+    // Dim doux sinusoïdal avec faible amplitude (haute intensité la plupart du temps)
+    float sine_wave = sinf(m_state.neon_time * 2.0f); // Fréquence douce ~0.3 Hz
+    float base_intensity = 0.92f + sine_wave * 0.08f; // Oscille entre 0.84 et 1.0
+
+    // Combiner avec le clignotement
+    m_state.neon_intensity = base_intensity * m_state.neon_flicker_intensity;
+
+    // Clamp final
+    m_state.neon_intensity = fmaxf(0.05f, fminf(1.0f, m_state.neon_intensity));
 }
 
 void ViewBadge::updateScanlineOffset()
 {
     m_state.scanline_offset = (m_state.scanline_offset + 1) % 10;
-}
-
-void ViewBadge::updateBrightness()
-{
-    int brightness = (int)(m_state.neon_flicker * 255.0f);
-    brightness = brightness < 32 ? 32 : (brightness > 255 ? 255 : brightness);
-    m_lcd.setBrightness(brightness);
 }
 
 void ViewBadge::renderBackground(LGFX_Sprite &spr)
@@ -127,11 +174,13 @@ void ViewBadge::renderScanlines(LGFX_Sprite &spr)
 void ViewBadge::renderNeonText(LGFX_Sprite &spr, const char *txt1, const char *txt2, int x, int y1, int y2)
 {
     uint8_t baseR = 255, baseG = 60, baseB = 200;
-    float flicker = m_state.neon_flicker;
+    float flicker = m_state.neon_intensity;
     float organic = fmaxf(flicker, 0.32f);
     spr.setTextDatum(MC_DATUM);
     spr.setTextFont(4);
-    int layers = (int)(m_state.neon_flicker * 12.0f);
+
+    // Toujours 12 layers, mais leur intensité varie avec le flicker
+    const int layers = 12;
     for (int i = layers; i > 0; i--)
     {
         float fade = powf(0.8f, i) * organic;
@@ -152,10 +201,13 @@ void ViewBadge::renderNeonText(LGFX_Sprite &spr, const char *txt1, const char *t
         spr.drawString(txt2, x, y2 - i);
     }
     spr.setTextSize(1.5f);
-    uint16_t brightColor = m_lcd.color565(
-        baseR * (0.3f + 0.6f * organic),
-        baseG * (0.3f + 0.6f * organic),
-        baseB * (0.3f + 0.6f * organic));
+    // Texte de base : plus foncé que le background quand le néon s'éteint
+    // Background = (8, 6, 20), donc on utilise des valeurs encore plus basses quand flicker est bas
+    float brightness = 0.3f + 0.6f * organic;
+    uint8_t darkR = (uint8_t)(baseR * brightness * flicker + 4 * (1.0f - flicker));
+    uint8_t darkG = (uint8_t)(baseG * brightness * flicker + 3 * (1.0f - flicker));
+    uint8_t darkB = (uint8_t)(baseB * brightness * flicker + 10 * (1.0f - flicker));
+    uint16_t brightColor = m_lcd.color565(darkR, darkG, darkB);
     spr.setTextColor(brightColor);
     spr.drawString(txt1, x, y1);
     spr.drawString(txt2, x, y2);
@@ -189,9 +241,8 @@ void ViewBadge::render(LGFX &display, LGFX_Sprite &spr)
     m_state.screenH = spr.height();
 
     // Mise à jour des variables d'animation
-    updateNeonFlicker();
+    updateNeonIntensity();
     updateScanlineOffset();
-    updateBrightness();
 
     // Rendu
     renderBackground(spr);
