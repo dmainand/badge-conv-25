@@ -46,4 +46,9 @@ public:
     unsigned long glitch_start = 0;
     int glitch_offset_x = 0;
     int glitch_offset_y = 0;
+
+    // Variables pour le bouton et la rotation
+    bool button_pressed = false;
+    unsigned long button_press_start = 0;
+    bool display_rotated = false;
 };
