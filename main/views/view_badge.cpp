@@ -7,33 +7,34 @@
 #include <cmath>
 #include "esp_timer.h"
 #include "esp_random.h"
+#include "esp_log.h"
 #include "../Orbitron_Bold24pt7b.h"
 
 // Couleurs badge (similaire à l'ancien display_manager)
 static uint16_t colBackground = 0;
-static uint16_t colNeonViolet = 0;
 static uint16_t colCyan = 0;
 static uint16_t colYellow = 0;
-static uint16_t colHeart = 0;
-static uint16_t colNeonPink = 0;
+static uint16_t colPink = 0;
+static uint16_t colMagenta = 0;
 
 // Utilitaire pour initialiser les couleurs une seule fois
 static void initColors(LGFX &display)
 {
     if (colBackground == 0)
     {
-        colBackground = display.color565(6, 4, 16);
-        colNeonViolet = display.color565(199, 120, 255);
-        colCyan = display.color565(0, 224, 255);
-        colYellow = display.color565(255, 195, 0);
-        colHeart = display.color565(255, 40, 180);
-        colNeonPink = display.color565(255, 20, 147);
+        colBackground = display.color565(10, 0, 30);
+        colCyan = display.color565(0, 255, 255);
+        colYellow = display.color565(255, 255, 0);
+        colPink = display.color565(255, 20, 220);
+        colMagenta = display.color565(255, 64, 255);
     }
 }
 
 ViewBadge::ViewBadge(AppState &state, LGFX &lcd)
     : m_state(state), m_lcd(lcd)
 {
+    // Initialiser les couleurs une seule fois
+    initColors(lcd);
     // Initialiser le prochain glitch
     m_state.glitch_next = (esp_timer_get_time() / 1000ULL) + ((esp_random() % 8000) + 7000); // 7-15 secondes
 }
@@ -66,7 +67,7 @@ void ViewBadge::updateAnimations(float dt)
     m_state.corner_pulse += dt * 2.0f;
 
     // Pulsation des bordures
-    m_state.border_pulse += dt * 1.5f;
+    m_state.border_pulse += dt * 4.0f;
 
     // Animation du microprocesseur
     unsigned long now_ms = esp_timer_get_time() / 1000ULL;
@@ -135,8 +136,7 @@ void ViewBadge::updateAnimations(float dt)
         }
 
         // Animer uniquement les particules actives
-        // Mouvement vers le haut plus lent
-        m_state.particles[i].y -= 0.2f + ((float)(i % 3)) * 0.1f; // Vitesses variées: 0.2, 0.3, 0.4 (plus lent)
+        m_state.particles[i].y -= 0.4f + ((float)(i % 3)) * 0.1f; // Vitesses variées: 0.2, 0.3, 0.4 (plus lent)
 
         // Incrémenter la phase pour l'effet de fade in/out
         m_state.particles[i].phase += dt * m_state.particles[i].speed;
@@ -196,31 +196,6 @@ void ViewBadge::updateAnimations(float dt)
             glitch_target_duration = 0;
         }
     }
-}
-
-void ViewBadge::updateNeonIntensity()
-{
-    unsigned long now = esp_timer_get_time() / 1000ULL; // Convertir microsecondes en millisecondes
-
-    // Calcul du delta time en secondes
-    float dt = 0.016f; // ~60fps par défaut
-    if (m_state.neon_last_update > 0)
-    {
-        dt = (now - m_state.neon_last_update) / 1000.0f;
-        dt = fminf(dt, 0.1f); // Limiter le delta time
-    }
-    m_state.neon_last_update = now;
-
-    // Incrémenter le temps pour la sinusoïde
-    m_state.neon_time += dt;
-
-    // Dim doux sinusoïdal avec faible amplitude (haute intensité la plupart du temps)
-    float sine_wave = sinf(m_state.neon_time * 1.5f); // Fréquence douce
-    float base_intensity = 0.92f + sine_wave * 0.08f; // Oscille entre 0.84 et 1.0
-    m_state.neon_intensity = base_intensity;
-
-    // Clamp final
-    m_state.neon_intensity = fmaxf(0.05f, fminf(1.0f, m_state.neon_intensity));
 }
 
 void ViewBadge::updateScanlineOffset()
@@ -364,7 +339,7 @@ void ViewBadge::renderParticles(LGFX_Sprite &spr)
 
 void ViewBadge::renderBorders(LGFX_Sprite &spr)
 {
-    float pulse = (sinf(m_state.border_pulse) * 0.3f + 0.7f) * m_state.neon_intensity;
+    float pulse = (sinf(m_state.border_pulse) * 0.3f + 0.7f);
     uint8_t intensity = (uint8_t)(pulse * 150);
     uint16_t borderColor = m_lcd.color565(intensity * 0.9, intensity * 0.6, intensity);
 
@@ -376,34 +351,86 @@ void ViewBadge::renderBorders(LGFX_Sprite &spr)
     spr.drawRect(1, 1, m_state.screenW - 2, m_state.screenH - 2, borderColor2);
 }
 
+void ViewBadge::drawTriangle(LGFX_Sprite &spr, int cornerX, int cornerY, bool pointRight, bool pointDown, int triSize, uint8_t intensity, uint16_t geomColor)
+{
+    // Triangle rectangle pointant vers le centre de l'écran
+    int x1 = cornerX;
+    int y1 = cornerY;
+    int x2 = pointRight ? cornerX + triSize : cornerX - triSize;
+    int y2 = cornerY;
+    int x3 = cornerX;
+    int y3 = pointDown ? cornerY + triSize : cornerY - triSize;
+
+    // Dessiner le triangle avec double ligne pour effet de profondeur
+    spr.drawLine(x1, y1, x2, y2, geomColor);
+    spr.drawLine(x2, y2, x3, y3, geomColor);
+    spr.drawLine(x3, y3, x1, y1, geomColor);
+
+    // Ligne intérieure pour effet de remplissage partiel
+    if (triSize > 4)
+    {
+        uint16_t innerColor = m_lcd.color565(intensity * 0.3, intensity * 0.6, intensity * 0.5);
+        int innerSize = triSize - 3;
+        int ix2 = pointRight ? cornerX + innerSize : cornerX - innerSize;
+        int iy3 = pointDown ? cornerY + innerSize : cornerY - innerSize;
+        spr.drawLine(x1, y1, ix2, y2, innerColor);
+        spr.drawLine(ix2, y2, x1, iy3, innerColor);
+    }
+}
+
 void ViewBadge::renderGeometricElements(LGFX_Sprite &spr)
 {
     float pulse = (sinf(m_state.corner_pulse * 1.3f) * 0.5f + 0.5f);
     uint8_t intensity = (uint8_t)(80 + pulse * 80);
     uint16_t geomColor = m_lcd.color565(intensity * 0.5, intensity, intensity * 0.8);
 
-    // Petits triangles dans les coins
     int triSize = 8;
+    int cornerOffset = 10;
 
-    // Triangle haut-gauche (pointant vers le bas-droit)
-    spr.drawLine(25, 15, 25 + triSize, 15, geomColor);
-    spr.drawLine(25, 15, 25, 15 + triSize, geomColor);
-    spr.drawLine(25 + triSize, 15, 25, 15 + triSize, geomColor);
+    // Triangle haut-gauche (pointe vers bas-droit)
+    drawTriangle(spr, cornerOffset, cornerOffset, true, true, triSize, intensity, geomColor);
 
-    // Triangle haut-droit (pointant vers le bas-gauche)
-    spr.drawLine(m_state.screenW - 25 - triSize, 15, m_state.screenW - 25, 15, geomColor);
-    spr.drawLine(m_state.screenW - 25, 15, m_state.screenW - 25, 15 + triSize, geomColor);
-    spr.drawLine(m_state.screenW - 25 - triSize, 15, m_state.screenW - 25, 15 + triSize, geomColor);
+    // Triangle haut-droit (pointe vers bas-gauche)
+    drawTriangle(spr, m_state.screenW - cornerOffset, cornerOffset, false, true, triSize, intensity, geomColor);
 
-    // Lignes horizontales décoratives pulsantes
-    int lineY1 = 50;
-    int lineY2 = m_state.screenH - 25;
-    int lineLen = (int)(30 + pulse * 10);
+    // Triangle bas-gauche (pointe vers haut-droit)
+    drawTriangle(spr, cornerOffset, m_state.screenH - cornerOffset, true, false, triSize, intensity, geomColor);
 
-    spr.drawFastHLine(10, lineY1, lineLen, geomColor);
-    spr.drawFastHLine(m_state.screenW - 10 - lineLen, lineY1, lineLen, geomColor);
-    spr.drawFastHLine(10, lineY2, lineLen, geomColor);
-    spr.drawFastHLine(m_state.screenW - 10 - lineLen, lineY2, lineLen, geomColor);
+    // Triangle bas-droit (pointe vers haut-gauche)
+    drawTriangle(spr, m_state.screenW - cornerOffset, m_state.screenH - cornerOffset, false, false, triSize, intensity, geomColor);
+
+    // Lignes horizontales avec effet de vague et déploiement
+    int lineY1 = 40;
+
+    // Animation de longueur avec effet de vague (décalage de phase entre lignes)
+    float wave1 = sinf(m_state.border_pulse * 0.7f);
+    float wave2 = sinf(m_state.border_pulse * 0.7f + 1.57f); // Décalage de 90°
+
+    int baseLen = 25;
+    int maxExtension = 20;
+
+    // Lignes du haut (gauche et droite avec animations opposées)
+    int lineLen1_left = baseLen + (int)(wave1 * maxExtension);
+    int lineLen1_right = baseLen + (int)(-wave1 * maxExtension);
+
+    // Lignes du bas (effet inversé)
+    int lineLen2_left = baseLen + (int)(wave2 * maxExtension);
+    int lineLen2_right = baseLen + (int)(-wave2 * maxExtension);
+
+    // Effet de double ligne pour plus de profondeur
+    uint16_t geomColorDim = m_lcd.color565(intensity * 0.3, intensity * 0.6, intensity * 0.5);
+
+    // Lignes haut
+    spr.drawFastHLine(10, lineY1, lineLen1_left, geomColor);
+    spr.drawFastHLine(10, lineY1 + 2, lineLen1_left * 0.7f, geomColorDim);
+    spr.drawFastHLine(m_state.screenW - 10 - lineLen1_right, lineY1, lineLen1_right, geomColor);
+    spr.drawFastHLine(m_state.screenW - 10 - (int)(lineLen1_right * 0.7f), lineY1 + 2, lineLen1_right * 0.7f, geomColorDim);
+
+    // Lignes bas
+    spr.drawFastHLine(10, m_state.screenH - lineY1, lineLen2_left, geomColor);
+    spr.drawFastHLine(10, m_state.screenH - lineY1 - 2, lineLen2_left * 0.7f, geomColorDim);
+    spr.drawFastHLine(m_state.screenW - 10 - lineLen2_right, m_state.screenH - lineY1, lineLen2_right, geomColor);
+    spr.drawFastHLine(m_state.screenW - 10 - (int)(lineLen2_right * 0.7f), m_state.screenH - lineY1 - 2, lineLen2_right * 0.7f, geomColorDim);
 }
 
 void ViewBadge::renderMicroprocessor(LGFX_Sprite &spr)
@@ -568,8 +595,8 @@ void ViewBadge::renderNeonFullName(LGFX_Sprite &spr, const char *name1, const ch
     spr.setFont(&Orbitron_Bold24pt7b);
     spr.setTextSize(0.8f);
 
-    drawNeonText(spr, name1, x, y1, colNeonPink);
-    drawNeonText(spr, name2_upper.c_str(), x, y2, colNeonPink);
+    drawNeonText(spr, name1, x, y1, colPink);
+    drawNeonText(spr, name2_upper.c_str(), x, y2, colPink);
 
     spr.setFont(nullptr); // Revenir à la police par défaut après usage
 }
@@ -593,26 +620,26 @@ void ViewBadge::drawNeonText(LGFX_Sprite &spr, const char *text, int x, int y, u
         int blue_offset_y = ((esp_random() % 3) - 1);
 
         // Canal ROUGE ultra-décalé (effet mémoire corrompue)
-        uint16_t redChannel = m_lcd.color565(255 * m_state.neon_intensity, 0, 0);
+        uint16_t redChannel = m_lcd.color565(255, 0, 0);
         spr.setTextColor(redChannel);
         spr.drawString(text, x + red_offset_x - 2, y + red_offset_y);
 
         // Canal VERT (offset moyen, simule le bug du milieu)
-        uint16_t greenChannel = m_lcd.color565(0, 255 * m_state.neon_intensity, 0);
+        uint16_t greenChannel = m_lcd.color565(0, 255, 0);
         spr.setTextColor(greenChannel);
         spr.drawString(text, x + green_offset_x, y + green_offset_y);
 
         // Canal BLEU ultra-décalé (à l'opposé du rouge)
-        uint16_t blueChannel = m_lcd.color565(0, 0, 255 * m_state.neon_intensity);
+        uint16_t blueChannel = m_lcd.color565(0, 0, 255);
         spr.setTextColor(blueChannel);
         spr.drawString(text, x + blue_offset_x + 2, y + blue_offset_y);
 
         // Lignes horizontales "corrompues" (effet scan line bug)
         int scan_y = y + ((esp_random() % 3) - 1);
         uint16_t scanColor = m_lcd.color565(
-            (esp_random() % 2) * 255 * m_state.neon_intensity,
-            (esp_random() % 2) * 255 * m_state.neon_intensity,
-            (esp_random() % 2) * 255 * m_state.neon_intensity);
+            (esp_random() % 2) * 255,
+            (esp_random() % 2) * 255,
+            (esp_random() % 2) * 255);
         spr.setTextColor(scanColor);
         spr.drawString(text, x + ((esp_random() % 3) - 1), scan_y);
 
@@ -621,42 +648,35 @@ void ViewBadge::drawNeonText(LGFX_Sprite &spr, const char *text, int x, int y, u
         {
             int ghost_x = ((esp_random() % 7) - 3);
             int ghost_y = ((esp_random() % 5) - 2);
-            uint8_t ghost_alpha = (40 + (esp_random() % 60)) * m_state.neon_intensity;
+            uint8_t ghost_alpha = (40 + (esp_random() % 60));
             uint16_t ghostColor = m_lcd.color565(ghost_alpha, ghost_alpha * 0.3, ghost_alpha * 0.8);
             spr.setTextColor(ghostColor);
             spr.drawString(text, x + ghost_x, y + ghost_y);
         }
     }
 
-    // Extraire les composantes RGB de la couleur de base
-    uint8_t baseR = ((baseColor >> 11) & 0x1F) * 8;
-    uint8_t baseG = ((baseColor >> 5) & 0x3F) * 4;
-    uint8_t baseB = (baseColor & 0x1F) * 8;
-
-    // Appliquer l'intensité du néon aux couleurs
-    uint8_t neonR = baseR * m_state.neon_intensity;
-    uint8_t neonG = baseG * m_state.neon_intensity;
-    uint8_t neonB = baseB * m_state.neon_intensity;
-    uint16_t neonColor = m_lcd.color565(neonR, neonG, neonB);
-
-    // Effet néon simple : ombre/glow décalée (style QR code)
-    // Déterminer la couleur de l'ombre (magenta pour cyan, rose pour jaune)
+    // Effet néon simple : ombre/glow décalée
+    // Déterminer la couleur de l'ombre
     uint16_t shadowColor;
     if (baseColor == colCyan)
     {
-        shadowColor = m_lcd.color565(255 * m_state.neon_intensity, 0, 150 * m_state.neon_intensity); // Magenta néon
+        // Magenta flashy pour ombre du cyan
+        shadowColor = colPink;
     }
     else if (baseColor == colYellow)
     {
-        shadowColor = m_lcd.color565(255 * m_state.neon_intensity, 40 * m_state.neon_intensity, 180 * m_state.neon_intensity); // Rose/magenta
+        // Rose flashy pour ombre du jaune
+        shadowColor = colMagenta;
     }
-    else if (baseColor == colNeonPink)
+    else if (baseColor == colPink)
     {
-        shadowColor = m_lcd.color565(0, 80 * m_state.neon_intensity, 180 * m_state.neon_intensity); // Cyan profond pour contraste avec rose
+        // Cyan flashy pour ombre du pink
+        shadowColor = colCyan;
     }
     else
     {
-        shadowColor = m_lcd.color565(120 * m_state.neon_intensity, 0, 120 * m_state.neon_intensity); // Magenta profond
+        // Magenta profond par défaut
+        shadowColor = m_lcd.color565(180, 0, 255);
     }
 
     // Ombre/glow décalée
@@ -664,7 +684,7 @@ void ViewBadge::drawNeonText(LGFX_Sprite &spr, const char *text, int x, int y, u
     spr.drawString(text, x + glitch_x + 1, y + glitch_y + 1);
 
     // Texte principal avec intensité variable
-    spr.setTextColor(neonColor);
+    spr.setTextColor(baseColor);
     spr.drawString(text, x + glitch_x, y + glitch_y);
 }
 
@@ -677,42 +697,31 @@ void ViewBadge::drawNeonLine(LGFX_Sprite &spr, int x1, int y1, int x2, int y2, u
 
     // Extraire les composantes RGB
     uint8_t baseR = ((baseColor >> 11) & 0x1F) * 8;
-    uint8_t baseG = ((baseColor >> 5) & 0x3F) * 4;
     uint8_t baseB = (baseColor & 0x1F) * 8;
 
     // Effet glitch sur la ligne (séparation RGB)
     if (m_state.glitch_active)
     {
-        uint16_t redChannel = m_lcd.color565(baseR * 0.5 * m_state.neon_intensity, 0, 0);
+        uint16_t redChannel = m_lcd.color565(baseR * 0.5, 0, 0);
         spr.drawFastHLine(x1 + glitch_x - 2, y1 + glitch_y, x2 - x1, redChannel);
 
-        uint16_t blueChannel = m_lcd.color565(0, 0, baseB * 0.5 * m_state.neon_intensity);
+        uint16_t blueChannel = m_lcd.color565(0, 0, baseB * 0.5);
         spr.drawFastHLine(x1 + glitch_x + 2, y1 + glitch_y, x2 - x1, blueChannel);
     }
 
-    // Appliquer l'intensité du néon à la couleur de base
-    uint8_t neonR = baseR * m_state.neon_intensity;
-    uint8_t neonG = baseG * m_state.neon_intensity;
-    uint8_t neonB = baseB * m_state.neon_intensity;
-    uint16_t neonColor = m_lcd.color565(neonR, neonG, neonB);
-
-    // Effet néon simple : ombre/glow décalée (style QR code)
-    uint16_t shadowColor = m_lcd.color565(255 * m_state.neon_intensity, 0, 150 * m_state.neon_intensity); // Magenta néon
+    // Effet néon simple : ombre/glow décalée
+    uint16_t shadowColor = m_lcd.color565(255, 0, 150); // Magenta néon
 
     // Ombre décalée
     spr.drawFastHLine(x1 + glitch_x, y1 + glitch_y + 1, x2 - x1, shadowColor);
 
     // Ligne principale avec intensité variable
-    spr.drawFastHLine(x1 + glitch_x, y1 + glitch_y, x2 - x1, neonColor);
+    spr.drawFastHLine(x1 + glitch_x, y1 + glitch_y, x2 - x1, baseColor);
 }
 
 // Affichage principal du badge
 void ViewBadge::render(LGFX &display, LGFX_Sprite &spr)
 {
-    initColors(display);
-    // Update AppState screen size
-    m_state.screenW = spr.width();
-    m_state.screenH = spr.height();
 
     // Initialiser les particules si nécessaire
     initParticles();
@@ -727,7 +736,6 @@ void ViewBadge::render(LGFX &display, LGFX_Sprite &spr)
     }
 
     // Mise à jour des animations
-    updateNeonIntensity();
     updateScanlineOffset();
     updateAnimations(dt);
 

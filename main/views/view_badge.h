@@ -13,7 +13,6 @@ public:
     void render(LGFX &display, LGFX_Sprite &spr) override;
     void initParticles();
     void updateAnimations(float dt);
-    void updateNeonIntensity();
     void updateScanlineOffset();
     void renderBackground(LGFX_Sprite &spr);
     void renderHeader(LGFX_Sprite &spr);
@@ -32,6 +31,7 @@ public:
     // Helper pour effets néon
     void drawNeonText(LGFX_Sprite &spr, const char *text, int x, int y, uint16_t baseColor);
     void drawNeonLine(LGFX_Sprite &spr, int x1, int y1, int x2, int y2, uint16_t baseColor);
+    void drawTriangle(LGFX_Sprite &spr, int cornerX, int cornerY, bool pointRight, bool pointDown, int triSize, uint8_t intensity, uint16_t geomColor);
 
     AppState &m_state;
     LGFX &m_lcd;
