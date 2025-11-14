@@ -41,7 +41,19 @@ void DisplayManager::displayLoop()
     {
         if (!m_wasTouched)
         {
-            nextView();
+            // Essayer de passer le touch à la vue courante
+            bool touchHandled = false;
+            if (!m_views.empty())
+            {
+                touchHandled = m_views[m_currentView]->handleTouch(pixel_x, pixel_y);
+            }
+
+            // Si la vue n'a pas géré le touch, changer de vue
+            if (!touchHandled)
+            {
+                nextView();
+            }
+
             m_wasTouched = true;
         }
     }
@@ -100,31 +112,31 @@ void DisplayManager::handleButton()
     {
         // Fin de la pression
         unsigned long press_duration = now - m_state.button_press_start;
-        
+
         if (press_duration >= LONG_PRESS_DURATION)
         {
             // Clic long détecté : inverser la rotation
             m_state.display_rotated = !m_state.display_rotated;
-            
+
             // Appliquer la rotation
             if (m_state.display_rotated)
             {
-                m_lcd.setRotation(2);  // alim en bas
+                m_lcd.setRotation(2); // alim en bas
             }
             else
             {
-                m_lcd.setRotation(0);  // retablissement standard (alim en haut)
+                m_lcd.setRotation(0); // retablissement standard (alim en haut)
             }
-            
+
             // Recréer le sprite avec les nouvelles dimensions si nécessaire
             m_state.screenW = m_lcd.width();
             m_state.screenH = m_lcd.height();
             m_sprite.deleteSprite();
             m_sprite.createSprite(m_state.screenW, m_state.screenH);
-            
+
             ESP_LOGI("DisplayManager", "Rotation changée: %s", m_state.display_rotated ? "180°" : "0°");
         }
-        
+
         m_state.button_pressed = false;
     }
 }

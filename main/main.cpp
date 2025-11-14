@@ -19,6 +19,7 @@
 
 #include "views/view_qrcode.h"
 #include "views/view_badge.h"
+#include "views/view_game.h"
 #include "user_info.h"
 
 #define TAG "BADGE"
@@ -47,6 +48,7 @@ extern "C" void app_main(void)
   // Ajout des vues
   displayManager.addView(std::make_unique<ViewBadge>(appState, lcd));
   displayManager.addView(std::make_unique<ViewQRCode>());
+  displayManager.addView(std::make_unique<ViewGame>(appState, lcd));
 
   // Génération du QR code de badge d'accès (après allocation des vues)
   user_info_generate_qrcode(user_info.accessBadgeToken.c_str());
