@@ -42,6 +42,11 @@ public:
     int glitch_offset_x = 0;
     int glitch_offset_y = 0;
 
+    // Variables pour le bouton et la rotation
+    bool button_pressed = false;
+    unsigned long button_press_start = 0;
+    bool display_rotated = false;
+  
     // Animation du microprocesseur
     float chip_animation_progress = 0.0f; // 0.0 à 1.0 = dessin, pause 5s, puis fondu 3s
     unsigned long chip_pause_start = 0;   // Début de la pause après dessin complet

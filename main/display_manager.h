@@ -24,4 +24,5 @@ private:
     LGFX_Sprite m_sprite;
     void nextView();
     bool shouldRenderFrame();
+    void handleButton();
 };
