@@ -12,6 +12,7 @@
 
 class DisplayManager
 {
+
 public:
     DisplayManager(LGFX &lcd, AppState &state);
     void init();
@@ -21,6 +22,8 @@ public:
     void updateBrightness(uint8_t value);
     // Met à jour le temps d'éveil (minutes)
     void updateAwakeTime(float minutes);
+    // Applique la rotation selon Config::display_rotated
+    void applyRotationFromConfig();
 
 private:
     LGFX &m_lcd;

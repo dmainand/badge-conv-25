@@ -1,6 +1,8 @@
 #include "view_badge.h" // Pour initColors et couleurs badge
 #include "view_settings.h"
 #include "retro_colors.h"
+#include "button.h"
+#include <esp_log.h>
 
 ViewSettings::ViewSettings(LGFX &lcd, DisplayManager &displayManager)
     : View(true), m_lcd(lcd), m_displayManager(displayManager)
@@ -98,6 +100,22 @@ void ViewSettings::render(LGFX &display, LGFX_Sprite &spr)
     spr.setTextColor(colYellow);
     spr.drawString("+", stepperX + btnW + 8 + valueW + 8 + btnW / 2, stepperY + btnH / 2);
 
+    // Checkbox rotation écran
+    int cbx = m_checkboxRotX;
+    int cby = m_checkboxRotY;
+    int cbsize = m_checkboxRotSize;
+    spr.drawRect(cbx, cby, cbsize, cbsize, colCyan);
+    if (Config::display_rotated)
+    {
+        // Draw checkmark
+        spr.drawLine(cbx + 4, cby + cbsize / 2, cbx + cbsize / 2, cby + cbsize - 4, colCyan);
+        spr.drawLine(cbx + cbsize / 2, cby + cbsize - 4, cbx + cbsize - 4, cby + 4, colCyan);
+    }
+    spr.setTextColor(colCyan);
+    spr.setFont(&fonts::Font0);
+    spr.setTextDatum(textdatum_t::middle_left);
+    spr.drawString("Tourner l'ecran 180°", cbx + cbsize + 10, cby + cbsize / 2);
+
     // Draw cross button (rectangle + X)
     spr.drawRect(m_crossButton.x, m_crossButton.y, m_crossButton.w, m_crossButton.h, colWhite);
     int cx = m_crossButton.x + m_crossButton.w / 2;
@@ -112,8 +130,8 @@ void ViewSettings::updateBrightnessFromTouch(int x)
     int relX = x - (m_sliderX + 4);
     int range = m_sliderW - 8;
     int value = relX * 100 / range;
-    if (value < 0)
-        value = 0;
+    if (value < 1)
+        value = 1;
     if (value > 100)
         value = 100;
     m_displayManager.updateBrightness(value);
@@ -133,20 +151,26 @@ void ViewSettings::updateAwakeTimeStepper(bool increment)
     this->m_displayManager.updateAwakeTime(value);
 }
 
-bool ViewSettings::isButtonPressed(const Button &btn, int touch_x, int touch_y)
-{
-    return (touch_x >= btn.x && touch_x <= btn.x + btn.w && touch_y >= btn.y && touch_y <= btn.y + btn.h);
-}
-
 bool ViewSettings::handleTouch(int x, int y)
 {
+    // Cross button
     if (isButtonPressed(m_crossButton, x, y))
         return false;
+
+    // Checkbox rotation
+    int cbx = m_checkboxRotX;
+    int cby = m_checkboxRotY;
+    int cbsize = m_checkboxRotSize;
+    if (isRectanglePressed(cbx, cby, cbsize, cbsize, x, y))
+    {
+        toggleRotation();
+        return true;
+    }
+
     // Slider luminosité
-    if (x >= m_sliderX && x <= m_sliderX + m_sliderW && y >= m_sliderY && y <= m_sliderY + m_sliderH)
+    if (isRectanglePressed(m_sliderX, m_sliderY, m_sliderW, m_sliderH, x, y))
     {
         updateBrightnessFromTouch(x);
-        m_needsRedraw = true;
         return true;
     }
     // Stepper veille auto
@@ -156,19 +180,26 @@ bool ViewSettings::handleTouch(int x, int y)
     int btnH = this->m_stepperBtnH;
     int valueW = 60;
     // Bouton -
-    if (x >= stepperX && x <= stepperX + btnW && y >= stepperY && y <= stepperY + btnH)
+    if (isRectanglePressed(stepperX, stepperY, btnW, btnH, x, y))
     {
         this->updateAwakeTimeStepper(false);
-        m_needsRedraw = true;
         return true;
     }
     // Bouton +
     int plusX = stepperX + btnW + 8 + valueW + 8;
-    if (x >= plusX && x <= plusX + btnW && y >= stepperY && y <= stepperY + btnH)
+    if (isRectanglePressed(plusX, stepperY, btnW, btnH, x, y))
     {
         this->updateAwakeTimeStepper(true);
-        m_needsRedraw = true;
         return true;
     }
     return true;
+}
+
+void ViewSettings::toggleRotation()
+{
+    // Inverser la rotation dans Config
+    Config::display_rotated = !Config::display_rotated;
+    ESP_LOGI("ViewSettings", "Display rotation set to %d", Config::display_rotated);
+    // Appliquer la rotation via DisplayManager
+    m_displayManager.applyRotationFromConfig();
 }

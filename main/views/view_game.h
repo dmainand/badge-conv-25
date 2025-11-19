@@ -2,6 +2,7 @@
 #define VIEW_GAME_H
 
 #include "view.h"
+#include "button.h"
 #include "../state.h"
 #include "../lgfx_custom.h"
 
@@ -105,14 +106,8 @@ private:
     uint16_t m_colWhite;
 
     // Boutons
-    struct Button
-    {
-        int x, y, w, h;
-        const char *text;
-    };
     Button m_backButton;
     Button m_playButton;
-    bool isButtonPressed(const Button &btn, int touch_x, int touch_y);
 };
 
 #endif // VIEW_GAME_H

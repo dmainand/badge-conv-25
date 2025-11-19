@@ -1,4 +1,5 @@
 #include "view_game.h"
+#include "button.h"
 #include "esp_timer.h"
 #include "esp_random.h"
 #include "esp_log.h"
@@ -485,12 +486,6 @@ bool ViewGame::handleTouch(int x, int y)
     // Jeu en cours - traiter le touch pour tirer sur les menaces
     handleTouchInternal(x, y);
     return true;
-}
-
-bool ViewGame::isButtonPressed(const Button &btn, int touch_x, int touch_y)
-{
-    return touch_x >= btn.x && touch_x <= btn.x + btn.w &&
-           touch_y >= btn.y && touch_y <= btn.y + btn.h;
 }
 
 void ViewGame::createExplosion(float x, float y, uint16_t color)

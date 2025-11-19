@@ -51,6 +51,7 @@ void DisplayManager::init()
     gpio_config(&io_conf);
 
     setBacklight(Config::activeBrightness);
+    applyRotationFromConfig();
 
     m_state.screenW = m_lcd.width();
     m_state.screenH = m_lcd.height();
@@ -70,6 +71,8 @@ void DisplayManager::displayLoop()
     handleButton();
 
     int pixel_x = -1, pixel_y = -1;
+    int raw_x = -1, raw_y = -1;
+    m_lcd.getTouchRaw(&raw_x, &raw_y);
     bool touchDetected = m_lcd.getTouch(&pixel_x, &pixel_y);
     if (touchDetected)
     {
@@ -88,6 +91,14 @@ void DisplayManager::displayLoop()
                 bool touchHandled = false;
                 if (!m_views.empty())
                 {
+                    if (Config::display_rotated)
+                    {
+                        // Ajuster les coordonnées touchées si l'écran est en rotation 180°
+                        pixel_y = pixel_y + 20;
+                    }
+                    ESP_LOGI("DisplayManager", "Raw touch at (%d, %d)", raw_x, raw_y);
+                    ESP_LOGI("DisplayManager", "Touch detected at (%d, %d)", pixel_x, pixel_y);
+                    // Les coordonnées touch sont déjà dans le bon repère grâce à LovyanGFX
                     touchHandled = m_views[m_currentView]->handleTouch(pixel_x, pixel_y);
                 }
                 // Si la vue n'a pas géré le touch, changer de vue
@@ -192,6 +203,22 @@ bool DisplayManager::shouldRenderFrame()
     return true;
 }
 
+void DisplayManager::applyRotationFromConfig()
+{
+    m_lcd.waitDisplay(); // S'assurer que le LCD est prêt
+
+    ESP_LOGI("DisplayManager", "Applying rotation: %d", Config::display_rotated);
+
+    if (Config::display_rotated)
+    {
+        m_lcd.setRotation(2);
+    }
+    else
+    {
+        m_lcd.setRotation(0);
+    }
+}
+
 void DisplayManager::handleButton()
 {
     // Lire l'état du bouton (GPIO 0 est LOW quand pressé)
@@ -212,25 +239,9 @@ void DisplayManager::handleButton()
         if (press_duration >= LONG_PRESS_DURATION)
         {
             // Clic long détecté : inverser la rotation
-            m_state.display_rotated = !m_state.display_rotated;
-
-            // Appliquer la rotation
-            if (m_state.display_rotated)
-            {
-                m_lcd.setRotation(2); // alim en bas
-            }
-            else
-            {
-                m_lcd.setRotation(0); // retablissement standard (alim en haut)
-            }
-
-            // Recréer le sprite avec les nouvelles dimensions si nécessaire
-            m_state.screenW = m_lcd.width();
-            m_state.screenH = m_lcd.height();
-            m_sprite.deleteSprite();
-            m_sprite.createSprite(m_state.screenW, m_state.screenH);
-
-            ESP_LOGI("DisplayManager", "Rotation changée: %s", m_state.display_rotated ? "180°" : "0°");
+            Config::display_rotated = !Config::display_rotated;
+            applyRotationFromConfig();
+            ESP_LOGI("DisplayManager", "Rotation changée: %s", Config::display_rotated ? "180°" : "0°");
         }
 
         m_state.button_pressed = false;
