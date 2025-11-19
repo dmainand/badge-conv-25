@@ -31,6 +31,8 @@ private:
     DisplayManager &m_displayManager;
     // Slider brightness
     int m_sliderX, m_sliderY, m_sliderW, m_sliderH;
+    // Slider sleep brightness
+    int m_sliderSleepX, m_sliderSleepY, m_sliderSleepW, m_sliderSleepH;
     // Stepper awakeTime
     int m_stepperAwakeX, m_stepperAwakeY, m_stepperAwakeW, m_stepperAwakeH;
     int m_stepperBtnW, m_stepperBtnH;
@@ -38,6 +40,7 @@ private:
     int m_checkboxRotX = 20, m_checkboxRotY = 190, m_checkboxRotSize = 24;
     void drawSlider(LGFX_Sprite &spr, int x, int y, int w, int h, int colorFill, int colorGlow, int colorLabel, int colorValue, float value, float min, float max, const char *valueFormat, const char *label, int valueInt = -1);
     void updateBrightnessFromTouch(int x);
+    void updateSleepBrightnessFromTouch(int x);
     void updateAwakeTimeStepper(bool increment);
     // Cross button
     Button m_crossButton;
